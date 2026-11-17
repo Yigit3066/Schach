@@ -2,8 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Schach gegen KI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Schach gegen die KI</title>
 
   <style>
     :root {
@@ -37,11 +37,11 @@
       padding: 20px;
       background: var(--panel);
       border-radius: 16px;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
     }
 
     h1 {
-      margin: 0 0 16px;
+      margin: 0 0 18px;
       text-align: center;
       font-size: 1.7rem;
     }
@@ -116,21 +116,21 @@
       width: 20%;
       height: 20%;
       border-radius: 50%;
-      background: rgba(25,30,35,0.42);
+      background: rgba(25, 30, 35, 0.42);
     }
 
     .square.possible-capture::after {
       content: "";
       position: absolute;
       inset: 5%;
-      border: 4px solid rgba(220,40,40,0.7);
+      border: 4px solid rgba(220, 40, 40, 0.7);
       border-radius: 50%;
     }
 
     .piece {
       z-index: 1;
       line-height: 1;
-      text-shadow: 1px 2px 2px rgba(0,0,0,0.28);
+      text-shadow: 1px 2px 2px rgba(0, 0, 0, 0.28);
     }
 
     .white-piece {
@@ -149,9 +149,9 @@
 
     .buttons {
       display: flex;
-      gap: 10px;
       flex-wrap: wrap;
       justify-content: center;
+      gap: 10px;
     }
 
     button {
@@ -168,6 +168,11 @@
       background: #3479c9;
     }
 
+    button:focus-visible {
+      outline: 3px solid white;
+      outline-offset: 3px;
+    }
+
     .side-card {
       width: 220px;
       padding: 12px;
@@ -180,7 +185,9 @@
       display: block;
       width: 100%;
       height: auto;
+      min-height: 120px;
       border-radius: 8px;
+      object-fit: cover;
     }
 
     .side-card p {
@@ -190,6 +197,18 @@
     }
 
     @media (max-width: 720px) {
+      :root {
+        --board-size: min(90vw, 560px);
+      }
+
+      body {
+        padding: 10px;
+      }
+
+      .game {
+        padding: 14px;
+      }
+
       .game-layout {
         flex-direction: column;
         align-items: center;
@@ -225,10 +244,10 @@
 
       <aside class="side-card">
         <img
-          src="https://upload.wikimedia.org/wikipedia/commons/5/5d/Magnus_Carlsen_in_2023.jpg"
+          src="https://commons.wikimedia.org/wiki/Special:FilePath/Magnus_Carlsen_in_2023.jpg"
           alt="Magnus Carlsen"
           loading="lazy"
-          onerror="this.alt='Bild konnte nicht geladen werden'; this.parentElement.style.minHeight='150px';"
+          onerror="this.alt='Magnus-Carlsen-Bild konnte nicht geladen werden';"
         >
         <p>Magnus Carlsen</p>
       </aside>
@@ -296,20 +315,6 @@
       return null;
     }
 
-    function isSquareAttacked(board, targetRow, targetCol, byColor) {
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          const piece = board[row][col];
-          if (!piece || piece[0] !== byColor) continue;
-
-          if (pieceAttacksSquare(board, row, col, targetRow, targetCol, piece)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
     function pieceAttacksSquare(board, fromRow, fromCol, toRow, toCol, piece) {
       const type = piece[1];
       const rowDiff = toRow - fromRow;
@@ -323,21 +328,22 @@
       }
 
       if (type === "N") {
-        return (absRow === 2 && absCol === 1) || (absRow === 1 && absCol === 2);
+        return (absRow === 2 && absCol === 1) ||
+               (absRow === 1 && absCol === 2);
       }
 
       if (type === "K") {
         return Math.max(absRow, absCol) === 1;
       }
 
-      const isStraight = rowDiff === 0 || colDiff === 0;
-      const isDiagonal = absRow === absCol;
+      const straight = rowDiff === 0 || colDiff === 0;
+      const diagonal = absRow === absCol;
 
-      if (type === "R" && !isStraight) return false;
-      if (type === "B" && !isDiagonal) return false;
-      if (type === "Q" && !isStraight && !isDiagonal) return false;
-
+      if (type === "R" && !straight) return false;
+      if (type === "B" && !diagonal) return false;
+      if (type === "Q" && !straight && !diagonal) return false;
       if (type !== "R" && type !== "B" && type !== "Q") return false;
+      if (rowDiff === 0 && colDiff === 0) return false;
 
       const rowStep = Math.sign(rowDiff);
       const colStep = Math.sign(colDiff);
@@ -353,10 +359,34 @@
       return true;
     }
 
+    function isSquareAttacked(board, targetRow, targetCol, byColor) {
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+
+          if (
+            piece &&
+            piece[0] === byColor &&
+            pieceAttacksSquare(board, row, col, targetRow, targetCol, piece)
+          ) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
     function isKingInCheck(board, color) {
       const king = findKing(board, color);
       if (!king) return true;
-      return isSquareAttacked(board, king.row, king.col, oppositeColor(color));
+
+      return isSquareAttacked(
+        board,
+        king.row,
+        king.col,
+        oppositeColor(color)
+      );
     }
 
     function getPseudoMoves(board, fromRow, fromCol) {
@@ -371,7 +401,11 @@
         if (!inBounds(row, col)) return false;
 
         const target = board[row][col];
-        if (target && (target[0] === color || target[1] === "K")) return false;
+
+        // Eigene Figuren und Könige dürfen nicht geschlagen werden.
+        if (target && (target[0] === color || target[1] === "K")) {
+          return false;
+        }
 
         moves.push({ row, col });
         return !target;
@@ -386,7 +420,11 @@
           moves.push({ row: oneStep, col: fromCol });
 
           const twoStep = fromRow + 2 * direction;
-          if (fromRow === startRow && inBounds(twoStep, fromCol) && !board[twoStep][fromCol]) {
+          if (
+            fromRow === startRow &&
+            inBounds(twoStep, fromCol) &&
+            !board[twoStep][fromCol]
+          ) {
             moves.push({ row: twoStep, col: fromCol });
           }
         }
@@ -415,6 +453,7 @@
         for (const [dr, dc] of offsets) {
           addIfAvailable(fromRow + dr, fromCol + dc);
         }
+
         return moves;
       }
 
@@ -426,6 +465,7 @@
             }
           }
         }
+
         return moves;
       }
 
@@ -462,6 +502,7 @@
       nextBoard[toRow][toCol] = piece;
       nextBoard[fromRow][fromCol] = null;
 
+      // Ein Bauer wird am Ende des Bretts automatisch zur Dame.
       if (piece[1] === "P" && (toRow === 0 || toRow === 7)) {
         nextBoard[toRow][toCol] = piece[0] + "Q";
       }
@@ -481,7 +522,14 @@
 
       if (!isPseudoMove) return false;
 
-      const nextBoard = applyMoveToBoard(board, fromRow, fromCol, toRow, toCol);
+      const nextBoard = applyMoveToBoard(
+        board,
+        fromRow,
+        fromCol,
+        toRow,
+        toCol
+      );
+
       return !isKingInCheck(nextBoard, color);
     }
 
@@ -513,6 +561,7 @@
       boardElement.innerHTML = "";
 
       let selectedMoves = [];
+
       if (state.selected) {
         selectedMoves = getLegalMoves(state.board, state.turn).filter(move =>
           move.fromRow === state.selected.row &&
@@ -523,9 +572,14 @@
       for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
           const square = document.createElement("div");
-          square.className = `square ${(row + col) % 2 === 0 ? "light" : "dark"}`;
+          square.className =
+            `square ${(row + col) % 2 === 0 ? "light" : "dark"}`;
 
-          if (state.selected && state.selected.row === row && state.selected.col === col) {
+          if (
+            state.selected &&
+            state.selected.row === row &&
+            state.selected.col === col
+          ) {
             square.classList.add("selected");
           }
 
@@ -550,9 +604,11 @@
           }
 
           const piece = state.board[row][col];
+
           if (piece) {
             const pieceElement = document.createElement("span");
-            pieceElement.className = `piece ${piece[0] === "w" ? "white-piece" : "black-piece"}`;
+            pieceElement.className =
+              `piece ${piece[0] === "w" ? "white-piece" : "black-piece"}`;
             pieceElement.textContent = PIECES[piece[0]][piece[1]];
             square.appendChild(pieceElement);
           }
@@ -562,7 +618,8 @@
         }
       }
 
-      turnIndicator.textContent = state.turn === HUMAN ? "Weiß am Zug" : "Schwarz am Zug";
+      turnIndicator.textContent =
+        state.turn === HUMAN ? "Weiß am Zug" : "Schwarz am Zug";
       statusElement.textContent = state.status;
     }
 
@@ -603,7 +660,14 @@
     }
 
     function makeMove(fromRow, fromCol, toRow, toCol) {
-      state.board = applyMoveToBoard(state.board, fromRow, fromCol, toRow, toCol);
+      state.board = applyMoveToBoard(
+        state.board,
+        fromRow,
+        fromCol,
+        toRow,
+        toCol
+      );
+
       state.lastMove = { fromRow, fromCol, toRow, toCol };
       state.selected = null;
       state.turn = oppositeColor(state.turn);
@@ -625,13 +689,14 @@
         return;
       }
 
-      const checkText = isKingInCheck(state.board, state.turn) ? "Schach! " : "";
+      const checkText = isKingInCheck(state.board, state.turn)
+        ? "Schach! "
+        : "";
 
       if (state.turn === AI) {
         state.aiThinking = true;
         state.status = checkText + "Die KI denkt …";
         renderBoard();
-
         window.setTimeout(makeAIMove, 500);
       } else {
         state.status = checkText + "Du bist am Zug.";
@@ -652,14 +717,7 @@
         return;
       }
 
-      const pieceValues = {
-        P: 1,
-        N: 3,
-        B: 3,
-        R: 5,
-        Q: 9,
-        K: 100
-      };
+      const pieceValues = { P: 1, N: 3, B: 3, R: 5, Q: 9, K: 100 };
 
       const scoredMoves = moves.map(move => {
         const capturedPiece = state.board[move.toRow][move.toCol];
@@ -671,14 +729,20 @@
           move.toCol
         );
 
-        let score = capturedPiece ? pieceValues[capturedPiece[1]] * 10 : 0;
+        let score = capturedPiece
+          ? pieceValues[capturedPiece[1]] * 10
+          : 0;
 
         if (isKingInCheck(nextBoard, HUMAN)) {
           score += 4;
         }
 
         const movingPiece = state.board[move.fromRow][move.fromCol];
-        if (movingPiece[1] === "P" && (move.toRow === 0 || move.toRow === 7)) {
+
+        if (
+          movingPiece[1] === "P" &&
+          (move.toRow === 0 || move.toRow === 7)
+        ) {
           score += 8;
         }
 
@@ -712,9 +776,11 @@
 
     resetButton.addEventListener("click", resetGame);
 
+    // Hintergrundmusik wird direkt im Browser erzeugt; keine Audiodatei nötig.
     let audioContext = null;
     let musicTimer = null;
     let musicIndex = 0;
+    let masterGain = null;
 
     const melody = [
       261.63, 329.63, 392.00, 329.63,
@@ -724,26 +790,24 @@
     ];
 
     function playMusicNote() {
-      if (!audioContext) return;
+      if (!audioContext || !masterGain) return;
 
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-
-      const note = melody[musicIndex % melody.length];
       const now = audioContext.currentTime;
+      const oscillator = audioContext.createOscillator();
+      const noteGain = audioContext.createGain();
 
       oscillator.type = "sine";
-      oscillator.frequency.value = note;
+      oscillator.frequency.value = melody[musicIndex % melody.length];
 
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.03, now + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+      noteGain.gain.setValueAtTime(0.0001, now);
+      noteGain.gain.exponentialRampToValueAtTime(0.18, now + 0.04);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
 
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
+      oscillator.connect(noteGain);
+      noteGain.connect(masterGain);
 
       oscillator.start(now);
-      oscillator.stop(now + 0.4);
+      oscillator.stop(now + 0.5);
 
       musicIndex++;
     }
@@ -756,25 +820,40 @@
         if (audioContext) {
           await audioContext.close();
           audioContext = null;
+          masterGain = null;
         }
 
         musicButton.textContent = "Musik starten";
         return;
       }
 
-      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      const AudioContextClass =
+        window.AudioContext || window.webkitAudioContext;
 
-      if (!AudioContextCtor) {
-        statusElement.textContent = "Dein Browser unterstützt keine Web-Audio-Musik.";
+      if (!AudioContextClass) {
+        statusElement.textContent =
+          "Dieser Browser unterstützt die Musikfunktion nicht.";
         return;
       }
 
-      audioContext = new AudioContextCtor();
-      await audioContext.resume();
+      try {
+        audioContext = new AudioContextClass();
+        await audioContext.resume();
 
-      playMusicNote();
-      musicTimer = setInterval(playMusicNote, 450);
-      musicButton.textContent = "Musik stoppen";
+        masterGain = audioContext.createGain();
+        masterGain.gain.value = 0.7;
+        masterGain.connect(audioContext.destination);
+
+        musicIndex = 0;
+        playMusicNote();
+        musicTimer = window.setInterval(playMusicNote, 500);
+        musicButton.textContent = "Musik stoppen";
+      } catch (error) {
+        console.error("Musik konnte nicht gestartet werden:", error);
+        statusElement.textContent =
+          "Musik konnte nicht gestartet werden. Prüfe die Browser-Einstellungen.";
+        musicButton.textContent = "Musik starten";
+      }
     });
 
     renderBoard();
