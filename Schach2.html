@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schach gegen KI</title>
+
+  <style>
+    :root {
+      --light-square: #f0d9b5;
+      --dark-square: #b58863;
+      --background: #17191f;
+      --panel: #242832;
+      --text: #f4f4f5;
+      --accent: #4a90e2;
+      --board-size: min(80vw, 560px);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      background: var(--background);
+      font-family: Arial, sans-serif;
+    }
+
+    .game {
+      width: min(100%, 920px);
+      padding: 20px;
+      background: var(--panel);
+      border-radius: 16px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      text-align: center;
+      font-size: 1.7rem;
+    }
+
+    .game-layout {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 24px;
+    }
+
+    .play-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .info {
+      width: var(--board-size);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 1rem;
+    }
+
+    #turnIndicator {
+      font-weight: bold;
+    }
+
+    .board {
+      width: var(--board-size);
+      height: var(--board-size);
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      overflow: hidden;
+      border: 4px solid #111318;
+      border-radius: 8px;
+      user-select: none;
+    }
+
+    .square {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(28px, 8vw, 54px);
+      cursor: pointer;
+    }
+
+    .square.light {
+      background: var(--light-square);
+    }
+
+    .square.dark {
+      background: var(--dark-square);
+    }
+
+    .square.selected {
+      box-shadow: inset 0 0 0 4px #55b8ff;
+    }
+
+    .square.last-move {
+      box-shadow: inset 0 0 0 4px rgba(255, 220, 60, 0.75);
+    }
+
+    .square.possible-move::after {
+      content: "";
+      position: absolute;
+      width: 20%;
+      height: 20%;
+      border-radius: 50%;
+      background: rgba(25,30,35,0.42);
+    }
+
+    .square.possible-capture::after {
+      content: "";
+      position: absolute;
+      inset: 5%;
+      border: 4px solid rgba(220,40,40,0.7);
+      border-radius: 50%;
+    }
+
+    .piece {
+      z-index: 1;
+      line-height: 1;
+      text-shadow: 1px 2px 2px rgba(0,0,0,0.28);
+    }
+
+    .white-piece {
+      color: #fff;
+    }
+
+    .black-piece {
+      color: #171717;
+    }
+
+    #status {
+      min-height: 24px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #3479c9;
+    }
+
+    .side-card {
+      width: 220px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #303541;
+      text-align: center;
+    }
+
+    .side-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    .side-card p {
+      margin: 10px 0 0;
+      color: #e5e7eb;
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 720px) {
+      .game-layout {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .side-card {
+        width: min(100%, 260px);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="game">
+    <h1>Schach gegen die KI</h1>
+
+    <div class="game-layout">
+      <section class="play-area">
+        <div class="info">
+          <span>Du: Weiß</span>
+          <span id="turnIndicator">Weiß am Zug</span>
+        </div>
+
+        <div id="board" class="board" aria-label="Schachbrett"></div>
+
+        <div id="status" aria-live="polite">Du bist am Zug.</div>
+
+        <div class="buttons">
+          <button id="resetButton" type="button">Neues Spiel</button>
+          <button id="musicButton" type="button">Musik starten</button>
+        </div>
+      </section>
+
+      <aside class="side-card">
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/5/5d/Magnus_Carlsen_in_2023.jpg"
+          alt="Magnus Carlsen"
+          loading="lazy"
+          onerror="this.alt='Bild konnte nicht geladen werden'; this.parentElement.style.minHeight='150px';"
+        >
+        <p>Magnus Carlsen</p>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    "use strict";
+
+    const HUMAN = "w";
+    const AI = "b";
+
+    const PIECES = {
+      w: { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙" },
+      b: { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" }
+    };
+
+    const INITIAL_BOARD = [
+      ["bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR"],
+      ["bP", "bP", "bP", "bP", "bP", "bP", "bP", "bP"],
+      [null, null, null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null],
+      [null, null, null, null, null, null, null, null],
+      ["wP", "wP", "wP", "wP", "wP", "wP", "wP", "wP"],
+      ["wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]
+    ];
+
+    const boardElement = document.getElementById("board");
+    const turnIndicator = document.getElementById("turnIndicator");
+    const statusElement = document.getElementById("status");
+    const resetButton = document.getElementById("resetButton");
+    const musicButton = document.getElementById("musicButton");
+
+    const state = {
+      board: cloneBoard(INITIAL_BOARD),
+      turn: HUMAN,
+      selected: null,
+      lastMove: null,
+      gameOver: false,
+      aiThinking: false,
+      status: "Du bist am Zug."
+    };
+
+    function cloneBoard(board) {
+      return board.map(row => [...row]);
+    }
+
+    function inBounds(row, col) {
+      return row >= 0 && row < 8 && col >= 0 && col < 8;
+    }
+
+    function oppositeColor(color) {
+      return color === "w" ? "b" : "w";
+    }
+
+    function findKing(board, color) {
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          if (board[row][col] === color + "K") {
+            return { row, col };
+          }
+        }
+      }
+      return null;
+    }
+
+    function isSquareAttacked(board, targetRow, targetCol, byColor) {
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+          if (!piece || piece[0] !== byColor) continue;
+
+          if (pieceAttacksSquare(board, row, col, targetRow, targetCol, piece)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function pieceAttacksSquare(board, fromRow, fromCol, toRow, toCol, piece) {
+      const type = piece[1];
+      const rowDiff = toRow - fromRow;
+      const colDiff = toCol - fromCol;
+      const absRow = Math.abs(rowDiff);
+      const absCol = Math.abs(colDiff);
+
+      if (type === "P") {
+        const direction = piece[0] === "w" ? -1 : 1;
+        return rowDiff === direction && absCol === 1;
+      }
+
+      if (type === "N") {
+        return (absRow === 2 && absCol === 1) || (absRow === 1 && absCol === 2);
+      }
+
+      if (type === "K") {
+        return Math.max(absRow, absCol) === 1;
+      }
+
+      const isStraight = rowDiff === 0 || colDiff === 0;
+      const isDiagonal = absRow === absCol;
+
+      if (type === "R" && !isStraight) return false;
+      if (type === "B" && !isDiagonal) return false;
+      if (type === "Q" && !isStraight && !isDiagonal) return false;
+
+      if (type !== "R" && type !== "B" && type !== "Q") return false;
+
+      const rowStep = Math.sign(rowDiff);
+      const colStep = Math.sign(colDiff);
+      let row = fromRow + rowStep;
+      let col = fromCol + colStep;
+
+      while (row !== toRow || col !== toCol) {
+        if (board[row][col]) return false;
+        row += rowStep;
+        col += colStep;
+      }
+
+      return true;
+    }
+
+    function isKingInCheck(board, color) {
+      const king = findKing(board, color);
+      if (!king) return true;
+      return isSquareAttacked(board, king.row, king.col, oppositeColor(color));
+    }
+
+    function getPseudoMoves(board, fromRow, fromCol) {
+      const piece = board[fromRow][fromCol];
+      if (!piece) return [];
+
+      const color = piece[0];
+      const type = piece[1];
+      const moves = [];
+
+      function addIfAvailable(row, col) {
+        if (!inBounds(row, col)) return false;
+
+        const target = board[row][col];
+        if (target && (target[0] === color || target[1] === "K")) return false;
+
+        moves.push({ row, col });
+        return !target;
+      }
+
+      if (type === "P") {
+        const direction = color === "w" ? -1 : 1;
+        const startRow = color === "w" ? 6 : 1;
+        const oneStep = fromRow + direction;
+
+        if (inBounds(oneStep, fromCol) && !board[oneStep][fromCol]) {
+          moves.push({ row: oneStep, col: fromCol });
+
+          const twoStep = fromRow + 2 * direction;
+          if (fromRow === startRow && inBounds(twoStep, fromCol) && !board[twoStep][fromCol]) {
+            moves.push({ row: twoStep, col: fromCol });
+          }
+        }
+
+        for (const colOffset of [-1, 1]) {
+          const row = fromRow + direction;
+          const col = fromCol + colOffset;
+
+          if (!inBounds(row, col)) continue;
+
+          const target = board[row][col];
+          if (target && target[0] !== color && target[1] !== "K") {
+            moves.push({ row, col });
+          }
+        }
+
+        return moves;
+      }
+
+      if (type === "N") {
+        const offsets = [
+          [2, 1], [2, -1], [-2, 1], [-2, -1],
+          [1, 2], [1, -2], [-1, 2], [-1, -2]
+        ];
+
+        for (const [dr, dc] of offsets) {
+          addIfAvailable(fromRow + dr, fromCol + dc);
+        }
+        return moves;
+      }
+
+      if (type === "K") {
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr !== 0 || dc !== 0) {
+              addIfAvailable(fromRow + dr, fromCol + dc);
+            }
+          }
+        }
+        return moves;
+      }
+
+      const directions = [];
+
+      if (type === "R" || type === "Q") {
+        directions.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+      }
+
+      if (type === "B" || type === "Q") {
+        directions.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+      }
+
+      for (const [dr, dc] of directions) {
+        let row = fromRow + dr;
+        let col = fromCol + dc;
+
+        while (inBounds(row, col)) {
+          const canContinue = addIfAvailable(row, col);
+          if (!canContinue) break;
+
+          row += dr;
+          col += dc;
+        }
+      }
+
+      return moves;
+    }
+
+    function applyMoveToBoard(board, fromRow, fromCol, toRow, toCol) {
+      const nextBoard = cloneBoard(board);
+      const piece = nextBoard[fromRow][fromCol];
+
+      nextBoard[toRow][toCol] = piece;
+      nextBoard[fromRow][fromCol] = null;
+
+      if (piece[1] === "P" && (toRow === 0 || toRow === 7)) {
+        nextBoard[toRow][toCol] = piece[0] + "Q";
+      }
+
+      return nextBoard;
+    }
+
+    function isLegalMove(board, fromRow, fromCol, toRow, toCol, color) {
+      const piece = board[fromRow][fromCol];
+      if (!piece || piece[0] !== color) return false;
+
+      const target = board[toRow][toCol];
+      if (target && (target[0] === color || target[1] === "K")) return false;
+
+      const isPseudoMove = getPseudoMoves(board, fromRow, fromCol)
+        .some(move => move.row === toRow && move.col === toCol);
+
+      if (!isPseudoMove) return false;
+
+      const nextBoard = applyMoveToBoard(board, fromRow, fromCol, toRow, toCol);
+      return !isKingInCheck(nextBoard, color);
+    }
+
+    function getLegalMoves(board, color) {
+      const moves = [];
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+          if (!piece || piece[0] !== color) continue;
+
+          for (const move of getPseudoMoves(board, row, col)) {
+            if (isLegalMove(board, row, col, move.row, move.col, color)) {
+              moves.push({
+                fromRow: row,
+                fromCol: col,
+                toRow: move.row,
+                toCol: move.col
+              });
+            }
+          }
+        }
+      }
+
+      return moves;
+    }
+
+    function renderBoard() {
+      boardElement.innerHTML = "";
+
+      let selectedMoves = [];
+      if (state.selected) {
+        selectedMoves = getLegalMoves(state.board, state.turn).filter(move =>
+          move.fromRow === state.selected.row &&
+          move.fromCol === state.selected.col
+        );
+      }
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const square = document.createElement("div");
+          square.className = `square ${(row + col) % 2 === 0 ? "light" : "dark"}`;
+
+          if (state.selected && state.selected.row === row && state.selected.col === col) {
+            square.classList.add("selected");
+          }
+
+          if (
+            state.lastMove &&
+            (
+              (state.lastMove.fromRow === row && state.lastMove.fromCol === col) ||
+              (state.lastMove.toRow === row && state.lastMove.toCol === col)
+            )
+          ) {
+            square.classList.add("last-move");
+          }
+
+          const isTarget = selectedMoves.some(move =>
+            move.toRow === row && move.toCol === col
+          );
+
+          if (isTarget) {
+            square.classList.add(
+              state.board[row][col] ? "possible-capture" : "possible-move"
+            );
+          }
+
+          const piece = state.board[row][col];
+          if (piece) {
+            const pieceElement = document.createElement("span");
+            pieceElement.className = `piece ${piece[0] === "w" ? "white-piece" : "black-piece"}`;
+            pieceElement.textContent = PIECES[piece[0]][piece[1]];
+            square.appendChild(pieceElement);
+          }
+
+          square.addEventListener("click", () => handleSquareClick(row, col));
+          boardElement.appendChild(square);
+        }
+      }
+
+      turnIndicator.textContent = state.turn === HUMAN ? "Weiß am Zug" : "Schwarz am Zug";
+      statusElement.textContent = state.status;
+    }
+
+    function handleSquareClick(row, col) {
+      if (state.gameOver || state.aiThinking || state.turn !== HUMAN) return;
+
+      const clickedPiece = state.board[row][col];
+
+      if (state.selected) {
+        const fromRow = state.selected.row;
+        const fromCol = state.selected.col;
+
+        if (fromRow === row && fromCol === col) {
+          state.selected = null;
+          renderBoard();
+          return;
+        }
+
+        if (isLegalMove(state.board, fromRow, fromCol, row, col, HUMAN)) {
+          makeMove(fromRow, fromCol, row, col);
+          return;
+        }
+
+        if (clickedPiece && clickedPiece[0] === HUMAN) {
+          state.selected = { row, col };
+        } else {
+          state.selected = null;
+        }
+
+        renderBoard();
+        return;
+      }
+
+      if (clickedPiece && clickedPiece[0] === HUMAN) {
+        state.selected = { row, col };
+        renderBoard();
+      }
+    }
+
+    function makeMove(fromRow, fromCol, toRow, toCol) {
+      state.board = applyMoveToBoard(state.board, fromRow, fromCol, toRow, toCol);
+      state.lastMove = { fromRow, fromCol, toRow, toCol };
+      state.selected = null;
+      state.turn = oppositeColor(state.turn);
+
+      const nextMoves = getLegalMoves(state.board, state.turn);
+
+      if (nextMoves.length === 0) {
+        state.gameOver = true;
+
+        if (isKingInCheck(state.board, state.turn)) {
+          state.status = state.turn === HUMAN
+            ? "Schachmatt – die KI gewinnt!"
+            : "Schachmatt – du gewinnst!";
+        } else {
+          state.status = "Patt – Unentschieden!";
+        }
+
+        renderBoard();
+        return;
+      }
+
+      const checkText = isKingInCheck(state.board, state.turn) ? "Schach! " : "";
+
+      if (state.turn === AI) {
+        state.aiThinking = true;
+        state.status = checkText + "Die KI denkt …";
+        renderBoard();
+
+        window.setTimeout(makeAIMove, 500);
+      } else {
+        state.status = checkText + "Du bist am Zug.";
+        renderBoard();
+      }
+    }
+
+    function makeAIMove() {
+      if (state.gameOver || state.turn !== AI) {
+        state.aiThinking = false;
+        return;
+      }
+
+      const moves = getLegalMoves(state.board, AI);
+
+      if (moves.length === 0) {
+        state.aiThinking = false;
+        return;
+      }
+
+      const pieceValues = {
+        P: 1,
+        N: 3,
+        B: 3,
+        R: 5,
+        Q: 9,
+        K: 100
+      };
+
+      const scoredMoves = moves.map(move => {
+        const capturedPiece = state.board[move.toRow][move.toCol];
+        const nextBoard = applyMoveToBoard(
+          state.board,
+          move.fromRow,
+          move.fromCol,
+          move.toRow,
+          move.toCol
+        );
+
+        let score = capturedPiece ? pieceValues[capturedPiece[1]] * 10 : 0;
+
+        if (isKingInCheck(nextBoard, HUMAN)) {
+          score += 4;
+        }
+
+        const movingPiece = state.board[move.fromRow][move.fromCol];
+        if (movingPiece[1] === "P" && (move.toRow === 0 || move.toRow === 7)) {
+          score += 8;
+        }
+
+        score += Math.random() * 2;
+        return { move, score };
+      });
+
+      scoredMoves.sort((a, b) => b.score - a.score);
+
+      const bestMove = scoredMoves[0].move;
+      state.aiThinking = false;
+
+      makeMove(
+        bestMove.fromRow,
+        bestMove.fromCol,
+        bestMove.toRow,
+        bestMove.toCol
+      );
+    }
+
+    function resetGame() {
+      state.board = cloneBoard(INITIAL_BOARD);
+      state.turn = HUMAN;
+      state.selected = null;
+      state.lastMove = null;
+      state.gameOver = false;
+      state.aiThinking = false;
+      state.status = "Du bist am Zug.";
+      renderBoard();
+    }
+
+    resetButton.addEventListener("click", resetGame);
+
+    let audioContext = null;
+    let musicTimer = null;
+    let musicIndex = 0;
+
+    const melody = [
+      261.63, 329.63, 392.00, 329.63,
+      293.66, 349.23, 440.00, 349.23,
+      261.63, 329.63, 392.00, 523.25,
+      440.00, 392.00, 329.63, 293.66
+    ];
+
+    function playMusicNote() {
+      if (!audioContext) return;
+
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+
+      const note = melody[musicIndex % melody.length];
+      const now = audioContext.currentTime;
+
+      oscillator.type = "sine";
+      oscillator.frequency.value = note;
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.03, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+
+      oscillator.start(now);
+      oscillator.stop(now + 0.4);
+
+      musicIndex++;
+    }
+
+    musicButton.addEventListener("click", async () => {
+      if (musicTimer) {
+        clearInterval(musicTimer);
+        musicTimer = null;
+
+        if (audioContext) {
+          await audioContext.close();
+          audioContext = null;
+        }
+
+        musicButton.textContent = "Musik starten";
+        return;
+      }
+
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+
+      if (!AudioContextCtor) {
+        statusElement.textContent = "Dein Browser unterstützt keine Web-Audio-Musik.";
+        return;
+      }
+
+      audioContext = new AudioContextCtor();
+      await audioContext.resume();
+
+      playMusicNote();
+      musicTimer = setInterval(playMusicNote, 450);
+      musicButton.textContent = "Musik stoppen";
+    });
+
+    renderBoard();
+  </script>
+</body>
+</html>
