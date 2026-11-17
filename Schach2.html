@@ -196,6 +196,14 @@
       font-size: 0.95rem;
     }
 
+    .small-note {
+      max-width: 220px;
+      margin: 8px auto 0;
+      color: #c6cad2;
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
     @media (max-width: 720px) {
       :root {
         --board-size: min(90vw, 560px);
@@ -250,6 +258,9 @@
           onerror="this.alt='Magnus-Carlsen-Bild konnte nicht geladen werden';"
         >
         <p>Magnus Carlsen</p>
+        <div class="small-note">
+          Die Hintergrundmusik ist eine eigene, automatisch erzeugte Melodie.
+        </div>
       </aside>
     </div>
   </main>
@@ -502,7 +513,7 @@
       nextBoard[toRow][toCol] = piece;
       nextBoard[fromRow][fromCol] = null;
 
-      // Ein Bauer wird am Ende des Bretts automatisch zur Dame.
+      // Bauern werden am Ende des Bretts automatisch zu Damen.
       if (piece[1] === "P" && (toRow === 0 || toRow === 7)) {
         nextBoard[toRow][toCol] = piece[0] + "Q";
       }
@@ -511,6 +522,8 @@
     }
 
     function isLegalMove(board, fromRow, fromCol, toRow, toCol, color) {
+      if (!inBounds(toRow, toCol)) return false;
+
       const piece = board[fromRow][fromCol];
       if (!piece || piece[0] !== color) return false;
 
@@ -776,40 +789,108 @@
 
     resetButton.addEventListener("click", resetGame);
 
-    // Hintergrundmusik wird direkt im Browser erzeugt; keine Audiodatei nötig.
+    // Eigene, einfache Pop-Melodie; kein Originalsong und keine Audiodatei nötig.
     let audioContext = null;
     let musicTimer = null;
-    let musicIndex = 0;
+    let musicStep = 0;
     let masterGain = null;
 
-    const melody = [
-      261.63, 329.63, 392.00, 329.63,
-      293.66, 349.23, 440.00, 349.23,
-      261.63, 329.63, 392.00, 523.25,
-      440.00, 392.00, 329.63, 293.66
+    const beatLength = 0.32;
+
+    const chords = [
+      [261.63, 329.63, 392.00], // C-Dur
+      [220.00, 261.63, 329.63], // A-Moll
+      [174.61, 220.00, 261.63], // F-Dur
+      [196.00, 246.94, 293.66]  // G-Dur
     ];
 
-    function playMusicNote() {
+    const melody = [
+      523.25, 493.88, 392.00, 440.00,
+      523.25, 659.25, 587.33, 523.25,
+      440.00, 392.00, 329.63, 392.00,
+      440.00, 523.25, 493.88, 440.00
+    ];
+
+    function playTone(frequency, startTime, duration, volume, type) {
       if (!audioContext || !masterGain) return;
 
-      const now = audioContext.currentTime;
       const oscillator = audioContext.createOscillator();
-      const noteGain = audioContext.createGain();
+      const gain = audioContext.createGain();
+
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.025);
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        startTime + duration
+      );
+
+      oscillator.connect(gain);
+      gain.connect(masterGain);
+
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration + 0.02);
+    }
+
+    function playKick(startTime) {
+      if (!audioContext || !masterGain) return;
+
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
 
       oscillator.type = "sine";
-      oscillator.frequency.value = melody[musicIndex % melody.length];
+      oscillator.frequency.setValueAtTime(110, startTime);
+      oscillator.frequency.exponentialRampToValueAtTime(45, startTime + 0.13);
 
-      noteGain.gain.setValueAtTime(0.0001, now);
-      noteGain.gain.exponentialRampToValueAtTime(0.18, now + 0.04);
-      noteGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+      gain.gain.setValueAtTime(0.24, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.15);
 
-      oscillator.connect(noteGain);
-      noteGain.connect(masterGain);
+      oscillator.connect(gain);
+      gain.connect(masterGain);
 
-      oscillator.start(now);
-      oscillator.stop(now + 0.5);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + 0.16);
+    }
 
-      musicIndex++;
+    function playMusicStep() {
+      if (!audioContext || !masterGain) return;
+
+      const now = audioContext.currentTime + 0.01;
+      const beat = musicStep % 16;
+      const chord = chords[Math.floor(beat / 4) % chords.length];
+
+      // Leichter Pop-Beat.
+      if (beat % 4 === 0) {
+        playKick(now);
+      }
+
+      // Sanfte Akkorde auf den Zwischenschlägen.
+      if (beat % 4 === 2) {
+        chord.forEach((frequency, index) => {
+          playTone(
+            frequency * 2,
+            now,
+            0.48,
+            index === 0 ? 0.035 : 0.022,
+            "triangle"
+          );
+        });
+      }
+
+      // Kurze Bassnoten.
+      if (beat % 2 === 0) {
+        playTone(chord[0] / 2, now, 0.22, 0.12, "sine");
+      }
+
+      // Eingängige, selbst erzeugte Melodie.
+      const melodyNote = melody[beat];
+      if (melodyNote) {
+        playTone(melodyNote, now, 0.24, 0.075, "triangle");
+      }
+
+      musicStep++;
     }
 
     musicButton.addEventListener("click", async () => {
@@ -844,14 +925,14 @@
         masterGain.gain.value = 0.7;
         masterGain.connect(audioContext.destination);
 
-        musicIndex = 0;
-        playMusicNote();
-        musicTimer = window.setInterval(playMusicNote, 500);
+        musicStep = 0;
+        playMusicStep();
+        musicTimer = window.setInterval(playMusicStep, beatLength * 1000);
         musicButton.textContent = "Musik stoppen";
       } catch (error) {
         console.error("Musik konnte nicht gestartet werden:", error);
         statusElement.textContent =
-          "Musik konnte nicht gestartet werden. Prüfe die Browser-Einstellungen.";
+          "Musik konnte nicht gestartet werden. Prüfe die Browser-Lautstärke.";
         musicButton.textContent = "Musik starten";
       }
     });
